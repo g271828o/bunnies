@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐰 Bunnies! — Family Game Tracker</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+:root {
+  --bg: #fdf6ec;
+  --primary: #d4654a;
+  --primary-light: #e8957f;
+  --secondary: #6fa882;
+  --accent: #f0c060;
+  --text: #2c2f4a;
+  --text-light: #777;
+  --card: #fff;
+  --border: #e0cfc0;
+  --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+.app-header {
+  background: linear-gradient(135deg, #d4654a 0%, #a83f28 100%);
+  color: #fff;
+  padding: 2rem;
+  text-align: center;
+}
+.app-header h1 { font-size: 2.8rem; font-weight: 900; letter-spacing: -1px; }
+.app-header p { margin-top: 0.4rem; opacity: 0.85; font-size: 1rem; }
+
+/* ── Nav ── */
+.app-nav {
+  background: #fff;
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.app-nav button {
+  padding: 0.8rem 1.2rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-light);
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+.app-nav button:hover { background: var(--bg); color: var(--text); }
+.app-nav button.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 700; }
+
+/* ── Main ── */
+.app-main { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+.tab { display: none; }
+.tab.active { display: block; }
+
+/* ── Cards ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow);
+}
+.card h2 {
+  font-size: 1.2rem;
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+/* ── Grid ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+@media (max-width: 700px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.5rem 1rem; border: none; border-radius: 8px;
+  cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: #b84a32; }
+.btn-secondary { background: var(--secondary); color: #fff; }
+.btn-secondary:hover { background: #5a9170; }
+.btn-ghost { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+.btn-ghost:hover { background: var(--primary); color: #fff; }
+.btn-danger { background: #e53e3e; color: #fff; }
+.btn-danger:hover { background: #c53030; }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+
+/* ── Inputs ── */
+input[type="text"], input[type="month"], select {
+  padding: 0.5rem 0.85rem;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, select:focus { border-color: var(--primary); }
+
+/* ── Month selector row ── */
+.month-selector { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.month-selector label { font-weight: 600; }
+
+/* ── Tournament Matrix ── */
+.matrix-scroll { overflow-x: auto; }
+table.t-matrix { border-collapse: collapse; margin: 0 auto; font-size: 0.85rem; }
+.t-matrix th, .t-matrix td {
+  width: 72px; height: 56px;
+  text-align: center; vertical-align: middle;
+  border: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.t-matrix .player-label {
+  background: #f5f5f5; font-weight: 700; font-size: 0.78rem;
+  max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0.25rem;
+}
+.t-matrix td.self { background: #e0e0e0; }
+.t-matrix td.cell-win  { background: #c6efce; color: #276221; cursor: pointer; font-weight: 700; font-size: 1.3rem; }
+.t-matrix td.cell-win:hover  { background: #a0d9ae; }
+.t-matrix td.cell-loss { background: #ffc7ce; color: #9c0006; cursor: pointer; font-size: 0.75rem; }
+.t-matrix td.cell-loss:hover { background: #f0a8b0; }
+.t-matrix td.cell-empty { background: #fff; cursor: pointer; color: #ccc; font-size: 1.1rem; }
+.t-matrix td.cell-empty:hover { background: #f5f0ea; color: #aaa; }
+.matrix-legend { display: flex; gap: 1rem; justify-content: center; margin-top: 0.75rem; flex-wrap: wrap; font-size: 0.8rem; }
+.legend-item { display: flex; align-items: center; gap: 0.35rem; }
+.legend-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #ccc; }
+
+/* ── Player chips ── */
+.player-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+.player-chip {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  background: var(--accent); color: var(--text);
+  padding: 0.35rem 0.75rem; border-radius: 20px;
+  font-size: 0.85rem; font-weight: 600;
+}
+.player-chip button {
+  background: none; border: none; cursor: pointer; color: var(--text);
+  font-size: 1rem; padding: 0; line-height: 1; opacity: 0.55;
+}
+.player-chip button:hover { opacity: 1; color: #e53e3e; }
+
+/* ── Stat boxes ── */
+.stat-box { text-align: center; padding: 1rem; background: var(--bg); border-radius: var(--radius); border: 1px solid var(--border); }
+.stat-box .stat-num { font-size: 2rem; font-weight: 800; color: var(--primary); }
+.stat-box .stat-label { font-size: 0.78rem; color: var(--text-light); margin-top: 0.2rem; }
+
+/* ── Winner badge ── */
+.winner-badge {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: linear-gradient(135deg, #f6d365, #fda085);
+  color: #fff; padding: 0.5rem 1.2rem; border-radius: 25px;
+  font-weight: 700; font-size: 1.1rem;
+  box-shadow: 0 3px 10px rgba(253,160,133,0.4);
+}
+
+/* ── Graph container ── */
+.graph-wrap {
+  width: 100%; height: 480px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: #fafafa; overflow: hidden; position: relative;
+}
+.graph-wrap svg { width: 100%; height: 100%; }
+
+/* ── Concept cards ── */
+.concept-card {
+  border-left: 4px solid var(--primary);
+  padding: 0.9rem 1.1rem; background: #fff8f5;
+  border-radius: 0 8px 8px 0; margin-bottom: 1rem;
+}
+.concept-card h4 { color: var(--primary); margin-bottom: 0.35rem; font-size: 0.95rem; }
+.concept-card p { font-size: 0.88rem; line-height: 1.65; color: var(--text-light); }
+
+/* ── Rank list ── */
+.rank-list { list-style: none; }
+.rank-list li {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.6rem 0.75rem; border-radius: 8px;
+  margin-bottom: 0.35rem; background: var(--bg); font-weight: 600;
+}
+.rank-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 0.82rem; flex-shrink: 0;
+}
+.rank-1 { background: #ffd700; color: #6a4800; }
+.rank-2 { background: #c0c0c0; color: #444; }
+.rank-3 { background: #cd7f32; color: #fff; }
+.rank-n { background: var(--border); color: var(--text-light); }
+
+/* ── Leaderboard table ── */
+.lb-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.lb-table th {
+  text-align: left; padding: 0.55rem 0.75rem;
+  background: var(--bg); border-bottom: 2px solid var(--border);
+  font-weight: 700; color: var(--text-light);
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.lb-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }
+.lb-table tr:hover td { background: var(--bg); }
+
+/* ── SCC chips ── */
+.scc-chip {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px;
+  font-size: 0.75rem; font-weight: 700; margin: 0.15rem; color: #fff;
+}
+
+/* ── Hamiltonian path ── */
+.ham-path { display: flex; align-items: center; flex-wrap: wrap; gap: 0; margin: 1rem 0; }
+.ham-node { display: flex; flex-direction: column; align-items: center; }
+.ham-circle {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.78rem; color: #fff;
+  text-align: center; padding: 4px; word-break: break-word;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.ham-arrow { font-size: 1.5rem; color: var(--text-light); padding: 0 0.2rem; align-self: center; margin-bottom: 22px; }
+.ham-rank { font-size: 0.72rem; color: var(--text-light); margin-top: 0.3rem; font-weight: 700; }
+
+/* ── Month history ── */
+.month-history { list-style: none; }
+.month-history li {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 0.75rem; border-radius: 8px; margin-bottom: 0.35rem;
+  background: var(--bg); cursor: pointer; transition: background 0.15s;
+}
+.month-history li:hover { background: #ecddc8; }
+.month-history .mh-month { font-weight: 700; }
+.month-history .mh-winner { color: var(--primary); font-weight: 600; }
+.month-history .mh-edges { color: var(--text-light); font-size: 0.78rem; }
+
+/* ── Empty state ── */
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-light); }
+.empty-state .ei { font-size: 3rem; margin-bottom: 1rem; }
+.empty-state p { font-size: 0.95rem; line-height: 1.6; }
+
+/* ── Degree bar chart ── */
+.bar-chart { display: flex; align-items: flex-end; gap: 10px; height: 140px; padding-top: 12px; }
+.bar-group { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 40px; }
+.bar-stack { display: flex; gap: 3px; align-items: flex-end; }
+.bar-out { background: var(--secondary); border-radius: 4px 4px 0 0; width: 18px; transition: height 0.5s; }
+.bar-in  { background: var(--primary-light); border-radius: 4px 4px 0 0; width: 18px; transition: height 0.5s; }
+.bar-label { font-size: 0.7rem; margin-top: 5px; text-align: center; max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.chart-legend { display: flex; gap: 1rem; justify-content: center; margin-top: 0.5rem; font-size: 0.8rem; }
+.chart-legend-item { display: flex; align-items: center; gap: 0.35rem; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ── Tooltip ── */
+.tooltip {
+  position: fixed; background: rgba(30,32,55,0.93); color: #fff;
+  padding: 0.45rem 0.85rem; border-radius: 8px; font-size: 0.8rem;
+  pointer-events: none; z-index: 9999; max-width: 200px;
+  line-height: 1.5; display: none;
+}
+
+/* ── Win-rate bar ── */
+.wr-bar { display: flex; align-items: center; gap: 0.5rem; }
+.wr-track { width: 64px; height: 7px; background: #eee; border-radius: 4px; overflow: hidden; }
+.wr-fill  { height: 100%; background: var(--secondary); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>🐰 Bunnies!</h1>
+  <p>Family tournament tracker &amp; graph theory playground</p>
+</header>
+
+<nav class="app-nav" id="app-nav">
+  <button>🏠 Home</button>
+  <button>📝 Record</button>
+  <button>🕸️ Graph</button>
+  <button>🧮 Theory</button>
+  <button>🏆 Leaderboard</button>
+  <button>👥 Players</button>
+</nav>
+
+<div class="tooltip" id="tooltip"></div>
+
+<main class="app-main">
+  <div id="tab-home"        class="tab active"></div>
+  <div id="tab-record"      class="tab"></div>
+  <div id="tab-graph"       class="tab"></div>
+  <div id="tab-theory"      class="tab"></div>
+  <div id="tab-leaderboard" class="tab"></div>
+  <div id="tab-players"     class="tab"></div>
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE & PERSISTENCE
+// ═══════════════════════════════════════════════════════
+
+const STORAGE_KEY = 'bunnies-game-v1';
+
+let state = { players: [], months: {} };
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) state = JSON.parse(saved);
+    else initDemo();
+  } catch(e) { initDemo(); }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function initDemo() {
+  state = {
+    players: ['Mom', 'Dad', 'Alice', 'Bob'],
+    months: {
+      '2025-01': { edges: [
+        {from:'Mom',   to:'Dad'},   {from:'Mom',  to:'Alice'},
+        {from:'Bob',   to:'Mom'},   {from:'Alice',to:'Bob'},
+        {from:'Dad',   to:'Alice'}, {from:'Bob',  to:'Dad'}
+      ]},
+      '2025-02': { edges: [
+        {from:'Alice', to:'Mom'},   {from:'Alice',to:'Dad'},
+        {from:'Alice', to:'Bob'},   {from:'Mom',  to:'Bob'},
+        {from:'Mom',   to:'Dad'},   {from:'Bob',  to:'Dad'}
+      ]},
+      '2025-03': { edges: [
+        {from:'Dad',   to:'Mom'},   {from:'Dad',  to:'Alice'},
+        {from:'Dad',   to:'Bob'},   {from:'Alice',to:'Mom'},
+        {from:'Bob',   to:'Mom'},   {from:'Alice',to:'Bob'}
+      ]}
+    }
+  };
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+
+function fmtMonth(m) {
+  if (!m) return '';
+  const [y, mo] = m.split('-');
+  return new Date(+y, +mo - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function nowMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function allMonths() {
+  return Object.keys(state.months).sort().reverse();
+}
+
+function edges(month) { return (state.months[month] || {}).edges || []; }
+
+function edgeBetween(month, a, b) {
+  if (edges(month).some(e => e.from === a && e.to === b)) return a;
+  if (edges(month).some(e => e.from === b && e.to === a)) return b;
+  return null;
+}
+
+function setEdge(month, winner, loser) {
+  if (!state.months[month]) state.months[month] = { edges: [] };
+  state.months[month].edges = state.months[month].edges.filter(
+    e => !((e.from===winner&&e.to===loser)||(e.from===loser&&e.to===winner))
+  );
+  state.months[month].edges.push({ from: winner, to: loser });
+  saveState();
+}
+
+function clearEdge(month, a, b) {
+  if (!state.months[month]) return;
+  state.months[month].edges = state.months[month].edges.filter(
+    e => !((e.from===a&&e.to===b)||(e.from===b&&e.to===a))
+  );
+  saveState();
+}
+
+function outDeg(month, p) { return edges(month).filter(e => e.from === p).length; }
+function inDeg(month, p)  { return edges(month).filter(e => e.to   === p).length; }
+
+function monthWinner(month) {
+  if (!state.players.length) return null;
+  const es = edges(month);
+  if (!es.length) return null;
+  let best = null, bestScore = -1;
+  for (const p of state.players) {
+    const s = es.filter(e => e.from === p).length;
+    if (s > bestScore) { bestScore = s; best = p; }
+  }
+  return bestScore > 0 ? best : null;
+}
+
+function winColor(wins, max) {
+  if (max <= 0) return '#aaa';
+  const t = wins / max;
+  // red → orange → yellow → light-green → green
+  const stops = ['#e57373','#ffb74d','#fff176','#aed581','#4caf50'];
+  const pos = t * (stops.length - 1);
+  const lo = Math.min(Math.floor(pos), stops.length - 2);
+  return d3.interpolateRgb(stops[lo], stops[lo+1])(pos - lo);
+}
+
+// ═══════════════════════════════════════════════════════
+// GRAPH ALGORITHMS
+// ═══════════════════════════════════════════════════════
+
+function findSCCs(players, es) {
+  if (!players.length) return [];
+  const adj = {}, radj = {};
+  players.forEach(p => { adj[p] = []; radj[p] = []; });
+  es.forEach(e => {
+    if (adj[e.from]) adj[e.from].push(e.to);
+    if (radj[e.to])  radj[e.to].push(e.from);
+  });
+
+  const visited1 = new Set(), order = [];
+  function dfs1(v) {
+    visited1.add(v);
+    for (const u of adj[v]) if (!visited1.has(u)) dfs1(u);
+    order.push(v);
+  }
+  players.forEach(p => { if (!visited1.has(p)) dfs1(p); });
+
+  const visited2 = new Set(), sccs = [];
+  function dfs2(v, comp) {
+    visited2.add(v); comp.push(v);
+    for (const u of radj[v]) if (!visited2.has(u)) dfs2(u, comp);
+  }
+  for (let i = order.length - 1; i >= 0; i--) {
+    const v = order[i];
+    if (!visited2.has(v)) { const c = []; dfs2(v, c); sccs.push(c); }
+  }
+  return sccs;
+}
+
+function topoSort(players, es) {
+  const inDeg = {};
+  players.forEach(p => inDeg[p] = 0);
+  es.forEach(e => { if (inDeg[e.to] !== undefined) inDeg[e.to]++; });
+  const queue = players.filter(p => inDeg[p] === 0), result = [];
+  while (queue.length) {
+    const v = queue.shift(); result.push(v);
+    es.filter(e => e.from === v).forEach(e => {
+      if (inDeg[e.to] !== undefined) { inDeg[e.to]--; if (inDeg[e.to]===0) queue.push(e.to); }
+    });
+  }
+  return result.length === players.length ? result : null;
+}
+
+function hamiltonianPath(players, es) {
+  if (!players.length) return [];
+  const edgeSet = new Set(es.map(e => `${e.from}::${e.to}`));
+  const beats = (a, b) => edgeSet.has(`${a}::${b}`);
+  const path = [players[0]];
+  for (let i = 1; i < players.length; i++) {
+    const v = players[i]; let inserted = false;
+    for (let j = 0; j < path.length; j++) {
+      if (beats(v, path[j])) { path.splice(j, 0, v); inserted = true; break; }
+    }
+    if (!inserted) path.push(v);
+  }
+  return path;
+}
+
+function findKings(players, es) {
+  const edgeSet = new Set(es.map(e => `${e.from}::${e.to}`));
+  const beats = (a, b) => edgeSet.has(`${a}::${b}`);
+  return players.filter(p =>
+    players.every(q => q === p || beats(p, q) ||
+      players.some(mid => mid!==p && mid!==q && beats(p,mid) && beats(mid,q))
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB NAVIGATION
+// ═══════════════════════════════════════════════════════
+
+const TAB_NAMES = ['home','record','graph','theory','leaderboard','players'];
+const TAB_RENDERERS = {
+  home:        renderHome,
+  record:      renderRecord,
+  graph:       renderGraphTab,
+  theory:      renderTheoryTab,
+  leaderboard: renderLeaderboard,
+  players:     renderPlayers,
+};
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#app-nav button').forEach((b, i) =>
+    b.classList.toggle('active', TAB_NAMES[i] === name)
+  );
+  document.getElementById(`tab-${name}`).classList.add('active');
+  TAB_RENDERERS[name]();
+}
+
+document.querySelectorAll('#app-nav button').forEach((btn, i) => {
+  btn.addEventListener('click', () => switchTab(TAB_NAMES[i]));
+});
+
+// ═══════════════════════════════════════════════════════
+// HOME TAB
+// ═══════════════════════════════════════════════════════
+
+function renderHome() {
+  const months = allMonths();
+  const el = document.getElementById('tab-home');
+
+  if (!state.players.length) {
+    el.innerHTML = `<div class="card"><div class="empty-state">
+      <div class="ei">🐰</div>
+      <p>Welcome to Bunnies!<br>Start by adding your family members in the <strong>Players</strong> tab.</p>
+      <button class="btn btn-primary" style="margin-top:1rem;" onclick="switchTab('players')">👥 Add Players</button>
+    </div></div>`;
+    return;
+  }
+
+  const cm = nowMonth();
+  const cmEs = edges(cm);
+  const totalPairs = state.players.length * (state.players.length - 1) / 2;
+
+  // All-time win counts
+  const winCounts = {};
+  state.players.forEach(p => winCounts[p] = 0);
+  months.forEach(m => { const w = monthWinner(m); if (w) winCounts[w]++; });
+  const leader = state.players.reduce((best, p) => winCounts[p] > winCounts[best] ? p : best, state.players[0]);
+
+  el.innerHTML = `
+    <div class="grid-2">
+      <div class="card">
+        <h2>🗓️ This Month</h2>
+        <p style="font-size:1.05rem;font-weight:700;margin-bottom:1rem;">${fmtMonth(cm)}</p>
+        ${cmEs.length === 0 ? `
+          <p style="color:var(--text-light);">No results recorded yet.</p>
+          <button class="btn btn-primary" style="margin-top:1rem;" onclick="switchTab('record')">📝 Record Results</button>
+        ` : `
+          <div class="grid-3" style="margin-bottom:1rem;">
+            <div class="stat-box"><div class="stat-num">${cmEs.length}</div><div class="stat-label">Recorded</div></div>
+            <div class="stat-box"><div class="stat-num">${totalPairs - cmEs.length}</div><div class="stat-label">Remaining</div></div>
+            <div class="stat-box"><div class="stat-num">${totalPairs>0?Math.round(cmEs.length/totalPairs*100):0}%</div><div class="stat-label">Complete</div></div>
+          </div>
+          ${cmEs.length === totalPairs && totalPairs > 0 ? `
+            <div style="text-align:center;padding:0.5rem;">
+              <p style="color:var(--text-light);margin-bottom:0.5rem;">Month winner:</p>
+              <span class="winner-badge">🏆 ${monthWinner(cm)}</span>
+            </div>
+          ` : `
+            <p style="color:var(--text-light);font-size:0.9rem;">Currently leading: <strong>${monthWinner(cm)||'—'}</strong></p>
+            <button class="btn btn-ghost btn-sm" style="margin-top:0.75rem;" onclick="switchTab('record')">Continue recording →</button>
+          `}
+        `}
+      </div>
+      <div class="card">
+        <h2>🏆 All-Time Leader</h2>
+        ${months.length ? `
+          <div style="text-align:center;padding:1rem 0;">
+            <div style="font-size:3rem;margin-bottom:0.5rem;">🐰</div>
+            <span class="winner-badge" style="font-size:1.25rem;">${leader}</span>
+            <p style="color:var(--text-light);margin-top:0.75rem;">${winCounts[leader]} month${winCounts[leader]!==1?'s':''} won</p>
+          </div>
+        ` : `<p style="color:var(--text-light);">No months recorded yet.</p>`}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📅 Month History</h2>
+      ${months.length ? `
+        <ul class="month-history">
+          ${months.map(m => {
+            const w = monthWinner(m);
+            const e = edges(m).length;
+            return `<li onclick="goToGraph('${m}')">
+              <span class="mh-month">${fmtMonth(m)}</span>
+              <span class="mh-winner">${w ? '🏆 '+w : '—'}</span>
+              <span class="mh-edges">${e} matchup${e!==1?'s':''}</span>
+            </li>`;
+          }).join('')}
+        </ul>
+      ` : `<p style="color:var(--text-light);">No months recorded yet.</p>`}
+    </div>
+
+    <div class="card">
+      <h2>📊 Quick Stats</h2>
+      <div class="grid-3">
+        <div class="stat-box"><div class="stat-num">${months.length}</div><div class="stat-label">Months played</div></div>
+        <div class="stat-box"><div class="stat-num">${state.players.length}</div><div class="stat-label">Players</div></div>
+        <div class="stat-box"><div class="stat-num">${months.reduce((s,m)=>s+edges(m).length,0)}</div><div class="stat-label">Total matchups</div></div>
+      </div>
+    </div>
+  `;
+}
+
+function goToGraph(month) {
+  gGraphMonth = month;
+  switchTab('graph');
+}
+
+// ═══════════════════════════════════════════════════════
+// RECORD TAB
+// ═══════════════════════════════════════════════════════
+
+function renderRecord() {
+  const el = document.getElementById('tab-record');
+  el.innerHTML = `
+    <div class="card">
+      <h2>📝 Record Results</h2>
+      <p style="color:var(--text-light);margin-bottom:1rem;font-size:0.88rem;">
+        Each cell: <strong>row player</strong> said "Bunnies!" to <strong>column player</strong>.
+        Click to set the winner, click again to flip, click a third time to clear.
+      </p>
+      <div class="month-selector">
+        <label>Month:</label>
+        <input type="month" id="rec-month" value="${nowMonth()}" onchange="refreshMatrix()" />
+      </div>
+      <div id="matrix-area"></div>
+    </div>`;
+  refreshMatrix();
+}
+
+function refreshMatrix() {
+  const month = document.getElementById('rec-month').value;
+  const area  = document.getElementById('matrix-area');
+  const ps    = state.players;
+
+  if (!ps.length) {
+    area.innerHTML = `<div class="empty-state"><div class="ei">👥</div><p>Add players in the Players tab first.</p></div>`;
+    return;
+  }
+  if (!month) { area.innerHTML = `<p style="color:var(--text-light)">Select a month above.</p>`; return; }
+
+  const totalPairs = ps.length * (ps.length - 1) / 2;
+  const recorded   = edges(month).length;
+  const winner     = monthWinner(month);
+
+  let html = `<div class="matrix-scroll"><table class="t-matrix">
+    <tr><th class="player-label" style="background:#eee;">↓ said it to →</th>
+    ${ps.map(p=>`<th class="player-label" title="${p}">${p}</th>`).join('')}</tr>`;
+
+  ps.forEach(row => {
+    html += `<tr><th class="player-label" title="${row}">${row}</th>`;
+    ps.forEach(col => {
+      if (row === col) { html += `<td class="self">—</td>`; return; }
+      const w = edgeBetween(month, row, col);
+      if (w === row)
+        html += `<td class="cell-win"  title="${row} said Bunnies! to ${col} first" onclick="cycleCell('${month}','${row}','${col}')">🐰</td>`;
+      else if (w === col)
+        html += `<td class="cell-loss" title="${col} said Bunnies! to ${row} first" onclick="cycleCell('${month}','${row}','${col}')">✗</td>`;
+      else
+        html += `<td class="cell-empty" title="Click: ${row} said Bunnies! to ${col} first" onclick="cycleCell('${month}','${row}','${col}')">·</td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</table></div>`;
+
+  html += `
+    <div class="matrix-legend">
+      <div class="legend-item"><div class="legend-box" style="background:#c6efce;"></div> Row player won 🐰</div>
+      <div class="legend-item"><div class="legend-box" style="background:#ffc7ce;"></div> Column player won</div>
+      <div class="legend-item"><div class="legend-box" style="background:#fff;border-color:#ddd;"></div> Not recorded</div>
+    </div>
+    <p style="text-align:center;margin-top:0.85rem;color:var(--text-light);font-size:0.88rem;">
+      ${recorded} / ${totalPairs} matchups recorded
+      ${recorded===totalPairs&&totalPairs>0 ? ` &nbsp;·&nbsp; 🏆 Winner: <strong style="color:var(--primary)">${winner}</strong>` : ''}
+    </p>`;
+
+  area.innerHTML = html;
+}
+
+function cycleCell(month, row, col) {
+  const cur = edgeBetween(month, row, col);
+  if (cur === null)  setEdge(month, row, col);
+  else if (cur===row) setEdge(month, col, row);
+  else               clearEdge(month, row, col);
+  refreshMatrix();
+}
+
+// ═══════════════════════════════════════════════════════
+// GRAPH TAB
+// ═══════════════════════════════════════════════════════
+
+let gGraphMonth = null;
+
+function renderGraphTab() {
+  const ms = allMonths();
+  const el = document.getElementById('tab-graph');
+
+  if (!gGraphMonth && ms.length) gGraphMonth = ms[0];
+
+  el.innerHTML = `
+    <div class="card">
+      <h2>🕸️ Tournament Graph</h2>
+      <div class="month-selector">
+        <label>Month:</label>
+        <select id="g-month-sel" onchange="gGraphMonth=this.value;drawMainGraph()">
+          ${ms.map(m=>`<option value="${m}"${m===gGraphMonth?' selected':''}>${fmtMonth(m)}</option>`).join('') || '<option value="">—</option>'}
+        </select>
+      </div>
+      <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:1rem;">
+        Arrows point <em>from</em> the person who said "Bunnies!" first. Node size = wins that month. Drag to rearrange. Scroll to zoom.
+      </p>
+      <div class="graph-wrap" id="main-graph-wrap"></div>
+      <div id="main-graph-legend" style="margin-top:1rem;"></div>
+    </div>`;
+
+  drawMainGraph();
+}
+
+function drawMainGraph() {
+  const month = gGraphMonth;
+  const wrap  = document.getElementById('main-graph-wrap');
+  const legEl = document.getElementById('main-graph-legend');
+  if (!wrap) return;
+
+  if (!state.players.length || !month) {
+    wrap.innerHTML = `<div class="empty-state"><div class="ei">🕸️</div><p>No data to display.</p></div>`;
+    if (legEl) legEl.innerHTML = '';
+    return;
+  }
+
+  const ps = state.players;
+  const es = edges(month);
+  const maxW = Math.max(...ps.map(p => outDeg(month, p)), 1);
+
+  renderForceGraph(wrap, ps, es, p => winColor(outDeg(month,p), maxW), month);
+
+  if (legEl) {
+    const sorted = [...ps].sort((a,b) => outDeg(month,b)-outDeg(month,a));
+    legEl.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:center;">
+      ${sorted.map(p => {
+        const w = outDeg(month,p), l = inDeg(month,p);
+        return `<div style="display:flex;align-items:center;gap:0.4rem;background:var(--bg);padding:0.3rem 0.75rem;border-radius:20px;font-size:0.82rem;">
+          <div style="width:11px;height:11px;border-radius:50%;background:${winColor(w,maxW)};"></div>
+          <strong>${p}</strong>: ${w}W / ${l}L
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// D3 FORCE GRAPH (reusable)
+// ═══════════════════════════════════════════════════════
+
+let _simMap = {};  // keyed by container id — stop old sims
+
+function renderForceGraph(container, players, es, colorFn, monthKey) {
+  const id = container.id || 'graph';
+  if (_simMap[id]) { _simMap[id].stop(); delete _simMap[id]; }
+
+  const W = container.clientWidth  || 700;
+  const H = container.clientHeight || 480;
+  const R = 26;
+
+  d3.select(container).selectAll('*').remove();
+
+  const svg = d3.select(container).append('svg').attr('width', W).attr('height', H);
+  const g   = svg.append('g');
+
+  svg.call(d3.zoom().scaleExtent([0.25, 4]).on('zoom', ev => g.attr('transform', ev.transform)));
+
+  // Arrow marker
+  svg.append('defs').append('marker')
+    .attr('id', `arr-${id}`).attr('viewBox','0 -5 10 10')
+    .attr('refX', 10).attr('refY', 0)
+    .attr('markerWidth', 6).attr('markerHeight', 6)
+    .attr('orient', 'auto')
+    .append('path').attr('d','M0,-5L10,0L0,5').attr('fill','#888');
+
+  const nodes = players.map(p => ({ id: p }));
+  const links = es.map(e => ({ source: e.from, target: e.to }));
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link',    d3.forceLink(links).id(d=>d.id).distance(130))
+    .force('charge',  d3.forceManyBody().strength(-420))
+    .force('center',  d3.forceCenter(W/2, H/2))
+    .force('collide', d3.forceCollide(R + 14));
+
+  _simMap[id] = sim;
+
+  const linkSel = g.selectAll('.lnk').data(links).enter()
+    .append('line').attr('class','lnk')
+    .attr('stroke','#bbb').attr('stroke-width', 2.2)
+    .attr('marker-end', `url(#arr-${id})`);
+
+  const wins = {};
+  players.forEach(p => wins[p] = monthKey ? outDeg(monthKey, p) : 0);
+
+  const nodeSel = g.selectAll('.nd').data(nodes).enter()
+    .append('g').attr('class','nd')
+    .call(d3.drag()
+      .on('start', (ev,d) => { if(!ev.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag',  (ev,d) => { d.fx=ev.x; d.fy=ev.y; })
+      .on('end',   (ev,d) => { if(!ev.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+    )
+    .on('mouseover', (ev, d) => {
+      const w = monthKey ? outDeg(monthKey, d.id) : 0;
+      const l = monthKey ? inDeg(monthKey, d.id)  : 0;
+      showTip(ev, `<strong>${d.id}</strong><br>🐰 Wins: ${w}<br>Losses: ${l}`);
+    })
+    .on('mousemove', moveTip)
+    .on('mouseout',  hideTip);
+
+  const maxWins = Math.max(...players.map(p => wins[p]), 1);
+
+  nodeSel.append('circle')
+    .attr('r',      d => R + wins[d.id] * 3)
+    .attr('fill',   d => colorFn(d.id))
+    .attr('stroke', '#fff').attr('stroke-width', 3)
+    .style('filter','drop-shadow(1px 3px 4px rgba(0,0,0,0.18))');
+
+  nodeSel.append('text')
+    .text(d => d.id.length > 8 ? d.id.slice(0,7)+'…' : d.id)
+    .attr('text-anchor','middle').attr('dominant-baseline','middle')
+    .attr('font-size','12px').attr('font-weight','700')
+    .attr('fill','#fff').attr('pointer-events','none');
+
+  nodeSel.append('text')
+    .text(d => wins[d.id] > 0 ? `${wins[d.id]}W` : '')
+    .attr('text-anchor','middle')
+    .attr('y', d => R + wins[d.id]*3 + 14)
+    .attr('font-size','10px').attr('fill','var(--text-light)')
+    .attr('pointer-events','none');
+
+  sim.on('tick', () => {
+    linkSel.each(function(d) {
+      const dx = d.target.x - d.source.x, dy = d.target.y - d.source.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const tr  = R + wins[d.target.id] * 3 + 10;
+      d3.select(this)
+        .attr('x1', d.source.x).attr('y1', d.source.y)
+        .attr('x2', d.target.x - dx/len*tr)
+        .attr('y2', d.target.y - dy/len*tr);
+    });
+    nodeSel.attr('transform', d => {
+      const nr = R + wins[d.id]*3 + 10;
+      const x  = Math.max(nr, Math.min(W-nr, d.x));
+      const y  = Math.max(nr, Math.min(H-nr, d.y));
+      return `translate(${x},${y})`;
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// THEORY TAB
+// ═══════════════════════════════════════════════════════
+
+let gTheoryMonth = null;
+
+function renderTheoryTab() {
+  const ms = allMonths();
+  const el = document.getElementById('tab-theory');
+
+  if (!gTheoryMonth && ms.length) gTheoryMonth = ms[0];
+
+  el.innerHTML = `
+    <div class="card">
+      <h2>🧮 Graph Theory Explorer</h2>
+      <div class="month-selector">
+        <label>Month:</label>
+        <select id="th-month-sel" onchange="gTheoryMonth=this.value;buildTheory()">
+          ${ms.map(m=>`<option value="${m}"${m===gTheoryMonth?' selected':''}>${fmtMonth(m)}</option>`).join('') || '<option value="">—</option>'}
+        </select>
+      </div>
+    </div>
+    <div id="theory-sections"></div>`;
+
+  buildTheory();
+}
+
+const SCC_COLORS = d3.schemeTableau10;
+
+function buildTheory() {
+  const month = gTheoryMonth;
+  const sec   = document.getElementById('theory-sections');
+
+  if (!state.players.length || !month) {
+    sec.innerHTML = `<div class="card"><div class="empty-state"><div class="ei">🧮</div>
+      <p>Add players and record some games to explore graph theory!</p></div></div>`;
+    return;
+  }
+
+  const ps   = state.players;
+  const es   = edges(month);
+  const sccs = findSCCs(ps, es);
+  const topo = topoSort(ps, es);
+  const ham  = hamiltonianPath(ps, es);
+  const kings = findKings(ps, es);
+
+  const playerSCC  = {};
+  const playerColor = {};
+  sccs.forEach((comp, i) => comp.forEach(p => {
+    playerSCC[p]   = i;
+    playerColor[p] = SCC_COLORS[i % SCC_COLORS.length];
+  }));
+
+  const maxOut = Math.max(...ps.map(p => outDeg(month,p)), 1);
+
+  let html = `
+  <!-- 1: Tournament -->
+  <div class="card">
+    <h2>🏟️ What is a Tournament Graph?</h2>
+    <div class="concept-card">
+      <h4>Every pair of players has exactly one directed edge</h4>
+      <p>In Bunnies!, for every pair of family members, exactly one person says "Bunnies!" first.
+         This creates a <strong>tournament graph</strong> — a complete directed graph where for
+         every pair (A, B) there is either an edge A→B or B→A, never both, never neither.
+         With ${ps.length} players there are <strong>${ps.length*(ps.length-1)/2} possible matchups</strong>
+         and ${es.length} have been recorded this month.</p>
+    </div>
+    <div class="graph-wrap" id="th-graph-main" style="height:380px;"></div>
+  </div>
+
+  <!-- 2: Degree -->
+  <div class="card">
+    <h2>📊 Degree Analysis</h2>
+    <div class="concept-card">
+      <h4>In-degree vs Out-degree</h4>
+      <p><strong>Out-degree</strong> = how many people you said "Bunnies!" to first (your wins).
+         <strong>In-degree</strong> = how many people said it to you first (your losses).
+         In a complete tournament on n players, every player's in-degree + out-degree = n − 1 = ${ps.length-1}.</p>
+    </div>
+    <div id="th-degree-chart"></div>
+  </div>
+
+  <!-- 3: SCC -->
+  <div class="card">
+    <h2>🔁 Strongly Connected Components</h2>
+    <div class="concept-card">
+      <h4>Who can "reach" whom transitively?</h4>
+      <p>A <strong>strongly connected component (SCC)</strong> is a maximal set of players where
+         you can follow directed edges to get from anyone to anyone else.
+         In Bunnies! terms: within an SCC, every player can claim a transitive chain of "Bunnies!" wins back
+         to every other player — they're true rivals with no clear pecking order.</p>
+    </div>
+    <p style="margin-bottom:0.75rem;font-size:0.9rem;">
+      Found <strong>${sccs.length}</strong> SCC${sccs.length!==1?'s':''} in ${fmtMonth(month)}:
+    </p>
+    ${sccs.map((comp,i) => `
+      <div style="margin-bottom:0.5rem;">
+        <span style="font-weight:700;color:${SCC_COLORS[i%SCC_COLORS.length]}">${comp.length>1?'🔁':'·'} Group ${i+1}:</span>
+        ${comp.map(p=>`<span class="scc-chip" style="background:${SCC_COLORS[i%SCC_COLORS.length]}">${p}</span>`).join('')}
+        ${comp.length>1 ? '<span style="color:var(--text-light);font-size:0.8rem;"> — a cycle of rivals!</span>' : ''}
+      </div>`).join('')}
+    ${sccs.length===1 ? `<p style="color:var(--text-light);font-size:0.88rem;margin-top:0.5rem;">Everyone is in one giant cycle — very common in real tournaments!</p>` : ''}
+    <div class="graph-wrap" id="th-graph-scc" style="height:340px;margin-top:1rem;"></div>
+    <p style="font-size:0.8rem;color:var(--text-light);margin-top:0.5rem;">Node colors represent SCC membership.</p>
+  </div>
+
+  <!-- 4: Topo Sort -->
+  <div class="card">
+    <h2>⬇️ Topological Sort</h2>
+    <div class="concept-card">
+      <h4>Ordering vertices so all edges point "downward"</h4>
+      <p>A <strong>topological sort</strong> orders players so that if A beat B (A→B), then A comes before B.
+         This is only possible when the graph is a <strong>DAG</strong> (directed acyclic graph — no cycles).
+         If any group of players forms a cycle (all in one SCC), a true topological sort is impossible.</p>
+    </div>
+    ${topo ? `
+      <p style="color:var(--secondary);font-weight:600;margin-bottom:0.75rem;">✓ No cycles — a perfect topological ordering exists!</p>
+      <ul class="rank-list">
+        ${topo.map((p,i) => `<li>
+          <span class="rank-num ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span>
+          <span>${p}</span>
+          <span style="margin-left:auto;color:var(--text-light);font-size:0.85rem;">${outDeg(month,p)} wins</span>
+        </li>`).join('')}
+      </ul>
+    ` : `
+      <p style="color:var(--primary);font-weight:600;margin-bottom:0.5rem;">✗ Cycles detected — pure topological sort is impossible.</p>
+      <p style="color:var(--text-light);font-size:0.88rem;">
+        The ${sccs.length} SCC${sccs.length!==1?'s':''} can themselves be topologically sorted
+        (that's called the <em>condensation DAG</em>), but within each SCC the players are
+        too evenly matched for a strict linear order. Use the Hamiltonian path below for ranking instead.
+      </p>
+    `}
+  </div>
+
+  <!-- 5: Hamiltonian Path -->
+  <div class="card">
+    <h2>🛤️ Hamiltonian Path — The Ranking</h2>
+    <div class="concept-card">
+      <h4>Every tournament has a Hamiltonian path</h4>
+      <p>A <strong>Hamiltonian path</strong> visits every player exactly once following directed edges.
+         A beautiful theorem states that <em>every tournament graph contains at least one Hamiltonian path</em>.
+         This gives us a natural ranking — even when there are cycles, we can still order everyone!</p>
+    </div>
+    <div class="ham-path" id="th-ham-path"></div>
+    <p style="font-size:0.82rem;color:var(--text-light);">
+      The path may not be unique when players are closely matched.
+      ${!topo ? 'Because of cycles, earlier players do <em>not</em> necessarily beat all later players directly.' : ''}
+    </p>
+  </div>
+
+  <!-- 6: King -->
+  <div class="card">
+    <h2>👑 Tournament King${kings.length!==1?'s':''}</h2>
+    <div class="concept-card">
+      <h4>Dominating in at most 2 hops</h4>
+      <p>A <strong>king</strong> in a tournament is a player who can beat every other player either
+         <em>directly</em> or through exactly <em>one intermediate player</em>.
+         Remarkably, the player with the highest out-degree is always a king —
+         so the most-wins player is guaranteed to be royalty!</p>
+    </div>
+    ${kings.length ? `
+      <div style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:0.5rem;">
+        ${kings.map(k=>`<span class="winner-badge" style="font-size:1rem;">👑 ${k}</span>`).join('')}
+      </div>
+      ${kings.length>1 ? `<p style="color:var(--text-light);font-size:0.85rem;margin-top:0.75rem;">Multiple kings — this happens when top players are equally matched!</p>` : ''}
+    ` : `<p style="color:var(--text-light);">Not enough data yet.</p>`}
+  </div>`;
+
+  sec.innerHTML = html;
+
+  // Render main graph (colored by out-degree)
+  const mainWrap = document.getElementById('th-graph-main');
+  if (mainWrap) renderForceGraph(mainWrap, ps, es, p => winColor(outDeg(month,p), maxOut), month);
+
+  // Render SCC graph (colored by component)
+  const sccWrap = document.getElementById('th-graph-scc');
+  if (sccWrap) renderForceGraph(sccWrap, ps, es, p => playerColor[p] || '#aaa', null);
+
+  // Degree chart
+  const dc = document.getElementById('th-degree-chart');
+  if (dc) renderDegreeChart(dc, month, ps);
+
+  // Hamiltonian path
+  const hp = document.getElementById('th-ham-path');
+  if (hp) {
+    hp.innerHTML = ham.map((p, i) => `
+      <div class="ham-node">
+        <div class="ham-circle" style="background:${playerColor[p]||'#aaa'}">${p}</div>
+        <div class="ham-rank">#${i+1}</div>
+      </div>
+      ${i < ham.length-1 ? '<span class="ham-arrow">→</span>' : ''}
+    `).join('');
+  }
+}
+
+function renderDegreeChart(container, month, players) {
+  const outs = players.map(p => outDeg(month,p));
+  const ins  = players.map(p => inDeg(month,p));
+  const maxV = Math.max(...outs, ...ins, 1);
+  const maxH = 120;
+
+  container.innerHTML = `
+    <div class="bar-chart">
+      ${players.map((p,i) => `
+        <div class="bar-group">
+          <div class="bar-stack" style="height:${maxH}px;align-items:flex-end;">
+            <div class="bar-out" style="height:${Math.round(outs[i]/maxV*maxH)}px;" title="${p}: ${outs[i]} wins"></div>
+            <div class="bar-in"  style="height:${Math.round(ins[i]/maxV*maxH)}px;"  title="${p}: ${ins[i]} losses"></div>
+          </div>
+          <div class="bar-label">${p}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="chart-legend">
+      <div class="chart-legend-item"><div class="dot" style="background:var(--secondary)"></div> Wins (out-degree)</div>
+      <div class="chart-legend-item"><div class="dot" style="background:var(--primary-light)"></div> Losses (in-degree)</div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// LEADERBOARD TAB
+// ═══════════════════════════════════════════════════════
+
+function renderLeaderboard() {
+  const ms = allMonths();
+  const el = document.getElementById('tab-leaderboard');
+
+  if (!state.players.length) {
+    el.innerHTML = `<div class="card"><div class="empty-state"><div class="ei">🏆</div><p>Add players to see the leaderboard!</p></div></div>`;
+    return;
+  }
+
+  // Aggregate stats
+  const stats = {};
+  state.players.forEach(p => stats[p] = { monthWins: 0, totalWins: 0, totalLosses: 0 });
+
+  ms.forEach(m => {
+    const w = monthWinner(m);
+    if (w && stats[w]) stats[w].monthWins++;
+    state.players.forEach(p => {
+      stats[p].totalWins   += outDeg(m, p);
+      stats[p].totalLosses += inDeg(m, p);
+    });
+  });
+
+  const sorted = [...state.players].sort((a,b) =>
+    stats[b].monthWins - stats[a].monthWins || stats[b].totalWins - stats[a].totalWins
+  );
+
+  const trophy = ['🥇','🥈','🥉'];
+
+  // H2H matrix
+  const h2h = {};
+  state.players.forEach(a => state.players.forEach(b => { if (a!==b) h2h[`${a}::${b}`]=0; }));
+  ms.forEach(m => edges(m).forEach(e => { if (h2h[`${e.from}::${e.to}`]!==undefined) h2h[`${e.from}::${e.to}`]++; }));
+
+  el.innerHTML = `
+    <div class="card">
+      <h2>🏆 All-Time Leaderboard</h2>
+      <table class="lb-table">
+        <thead><tr>
+          <th>#</th><th>Player</th><th>Month Wins</th>
+          <th>Matchup Wins</th><th>Matchup Losses</th><th>Win Rate</th>
+        </tr></thead>
+        <tbody>
+          ${sorted.map((p,i) => {
+            const s = stats[p];
+            const tot = s.totalWins + s.totalLosses;
+            const rate = tot > 0 ? Math.round(s.totalWins/tot*100) : 0;
+            return `<tr>
+              <td>${trophy[i]||i+1}</td>
+              <td><strong>${p}</strong></td>
+              <td>${s.monthWins}</td>
+              <td>${s.totalWins}</td>
+              <td>${s.totalLosses}</td>
+              <td>
+                <div class="wr-bar">
+                  <div class="wr-track"><div class="wr-fill" style="width:${rate}%;"></div></div>
+                  ${rate}%
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>📅 Month-by-Month Winners</h2>
+      ${ms.length ? `
+        <ul class="rank-list">
+          ${ms.map((m,i) => {
+            const w  = monthWinner(m);
+            const e  = edges(m).length;
+            const tp = state.players.length*(state.players.length-1)/2;
+            return `<li>
+              <span class="rank-num ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span>
+              <div>
+                <div style="font-weight:700;">${fmtMonth(m)}</div>
+                <div style="font-size:0.78rem;color:var(--text-light);">${e}/${tp} matchups</div>
+              </div>
+              <span style="margin-left:auto;">${w?`🏆 <strong>${w}</strong>`:'<span style="color:var(--text-light)">—</span>'}</span>
+            </li>`;
+          }).join('')}
+        </ul>
+      ` : `<p style="color:var(--text-light)">No months recorded yet.</p>`}
+    </div>
+
+    <div class="card">
+      <h2>⚔️ Head-to-Head (all time)</h2>
+      ${state.players.length < 2 ? `<p style="color:var(--text-light)">Need at least 2 players.</p>` : `
+        <div class="matrix-scroll">
+          <table class="t-matrix">
+            <tr><th class="player-label" style="background:#eee;">↓ vs →</th>
+              ${state.players.map(p=>`<th class="player-label">${p}</th>`).join('')}
+            </tr>
+            ${state.players.map(row => `<tr>
+              <th class="player-label">${row}</th>
+              ${state.players.map(col => {
+                if (row===col) return `<td class="self">—</td>`;
+                const w = h2h[`${row}::${col}`]||0;
+                const l = h2h[`${col}::${row}`]||0;
+                const tot = w+l;
+                const bg = tot===0 ? '#f5f5f5' : w>l ? '#c6efce' : w<l ? '#ffc7ce' : '#fff9c4';
+                return `<td style="background:${bg};font-size:0.8rem;"><strong>${w}</strong>-${l}</td>`;
+              }).join('')}
+            </tr>`).join('')}
+          </table>
+        </div>
+        <p style="color:var(--text-light);font-size:0.78rem;margin-top:0.6rem;">Wins-Losses for the row player against each column player.</p>
+      `}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// PLAYERS TAB
+// ═══════════════════════════════════════════════════════
+
+function renderPlayers() {
+  const el = document.getElementById('tab-players');
+  const ms = allMonths();
+
+  // Per-player stats
+  const stats = {};
+  state.players.forEach(p => stats[p] = { monthWins: 0, totalWins: 0, totalLosses: 0 });
+  ms.forEach(m => {
+    const w = monthWinner(m);
+    if (w && stats[w]) stats[w].monthWins++;
+    state.players.forEach(p => { stats[p].totalWins += outDeg(m,p); stats[p].totalLosses += inDeg(m,p); });
+  });
+
+  el.innerHTML = `
+    <div class="card">
+      <h2>👥 Family Players</h2>
+      <div class="player-list">
+        ${state.players.map(p => `
+          <div class="player-chip">
+            🐰 ${p}
+            <button onclick="removePlayer('${p}')" title="Remove ${p}">×</button>
+          </div>`).join('')}
+        ${!state.players.length ? '<p style="color:var(--text-light);">No players yet.</p>' : ''}
+      </div>
+      <div style="display:flex;gap:0.75rem;align-items:center;margin-top:0.5rem;flex-wrap:wrap;">
+        <input type="text" id="new-player-input" placeholder="Player name…" style="flex:1;min-width:150px;"
+          onkeydown="if(event.key==='Enter')addPlayer()" />
+        <button class="btn btn-primary" onclick="addPlayer()">+ Add Player</button>
+      </div>
+    </div>
+
+    ${state.players.length ? `
+    <div class="card">
+      <h2>📊 Player Summary</h2>
+      <table class="lb-table">
+        <thead><tr><th>Player</th><th>Month Wins</th><th>Matchup Wins</th><th>Losses</th><th>Win Rate</th></tr></thead>
+        <tbody>
+          ${[...state.players].sort((a,b)=>stats[b].monthWins-stats[a].monthWins||stats[b].totalWins-stats[a].totalWins)
+            .map(p => {
+              const s = stats[p], tot = s.totalWins+s.totalLosses;
+              const rate = tot>0 ? Math.round(s.totalWins/tot*100) : 0;
+              return `<tr>
+                <td>🐰 <strong>${p}</strong></td>
+                <td>${s.monthWins}</td><td>${s.totalWins}</td><td>${s.totalLosses}</td>
+                <td><div class="wr-bar"><div class="wr-track"><div class="wr-fill" style="width:${rate}%"></div></div>${rate}%</div></td>
+              </tr>`;
+            }).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}
+
+    <div class="card" style="border-color:#ffc7ce;background:#fff8f8;">
+      <h2 style="color:#c53030;">⚠️ Danger Zone</h2>
+      <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:1rem;">
+        Resetting will erase all recorded data and restore the demo data.
+      </p>
+      <button class="btn btn-danger" onclick="resetAll()">🗑️ Reset All Data</button>
+    </div>`;
+}
+
+function addPlayer() {
+  const input = document.getElementById('new-player-input');
+  const name  = input.value.trim();
+  if (!name) return;
+  if (state.players.includes(name)) { alert(`${name} is already in the game!`); return; }
+  state.players.push(name);
+  saveState();
+  input.value = '';
+  renderPlayers();
+}
+
+function removePlayer(name) {
+  if (!confirm(`Remove ${name}? Their recorded matchups will also be removed.`)) return;
+  state.players = state.players.filter(p => p !== name);
+  Object.keys(state.months).forEach(m => {
+    state.months[m].edges = state.months[m].edges.filter(e => e.from!==name && e.to!==name);
+  });
+  saveState();
+  renderPlayers();
+}
+
+function resetAll() {
+  if (!confirm('Reset ALL data and restore demo? This cannot be undone.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  initDemo();
+  switchTab('home');
+}
+
+// ═══════════════════════════════════════════════════════
+// TOOLTIP
+// ═══════════════════════════════════════════════════════
+
+function showTip(ev, html) {
+  const t = document.getElementById('tooltip');
+  t.innerHTML = html; t.style.display = 'block'; moveTip(ev);
+}
+function moveTip(ev) {
+  const t = document.getElementById('tooltip');
+  t.style.left = (ev.clientX + 14) + 'px';
+  t.style.top  = (ev.clientY - 10) + 'px';
+}
+function hideTip() { document.getElementById('tooltip').style.display = 'none'; }
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+
+loadState();
+switchTab('home');
+</script>
+</body>
+</html>
