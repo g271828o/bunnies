@@ -273,6 +273,29 @@ table.t-matrix { border-collapse: collapse; margin: 0 auto; font-size: 0.85rem; 
   line-height: 1.5; display: none;
 }
 
+/* ── Conflict items ── */
+.conflict-item {
+  border: 1.5px solid var(--border); border-radius: 10px;
+  margin-bottom: 0.85rem; overflow: hidden;
+}
+.conflict-header {
+  background: var(--bg); padding: 0.5rem 0.85rem;
+  font-size: 0.78rem; font-weight: 700; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.conflict-pair { font-size: 0.95rem; font-weight: 700; color: var(--text); padding: 0 0.85rem 0.25rem; }
+.conflict-options { display: flex; }
+.conflict-opt {
+  flex: 1; padding: 0.65rem 0.85rem; cursor: pointer;
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.88rem; transition: background 0.15s; border-top: 1px solid var(--border);
+}
+.conflict-opt:first-child { border-right: 1px solid var(--border); }
+.conflict-opt input[type=radio] { accent-color: var(--primary); }
+.conflict-opt.opt-mine   { background: #f0faf4; }
+.conflict-opt.opt-theirs { background: #fff8f0; }
+.conflict-opt:hover { filter: brightness(0.96); }
+
 /* ── Win-rate bar ── */
 .wr-bar { display: flex; align-items: center; gap: 0.5rem; }
 .wr-track { width: 64px; height: 7px; background: #eee; border-radius: 4px; overflow: hidden; }
@@ -296,6 +319,21 @@ table.t-matrix { border-collapse: collapse; margin: 0 auto; font-size: 0.85rem; 
 </nav>
 
 <div class="tooltip" id="tooltip"></div>
+
+<!-- Merge conflict modal -->
+<div id="merge-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;overflow-y:auto;padding:2rem 1rem;">
+  <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.25);overflow:hidden;">
+    <div style="background:linear-gradient(135deg,var(--primary),#b84a32);color:#fff;padding:1.25rem 1.5rem;">
+      <h2 style="font-size:1.2rem;margin:0;">🔀 Merge Conflicts</h2>
+      <p id="merge-modal-subtitle" style="margin:0.3rem 0 0;opacity:0.88;font-size:0.88rem;"></p>
+    </div>
+    <div id="merge-modal-body" style="padding:1.5rem;max-height:60vh;overflow-y:auto;"></div>
+    <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:0.75rem;justify-content:flex-end;background:#fafafa;">
+      <button class="btn btn-ghost" onclick="closeMergeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="applyMerge()">✓ Apply Merge</button>
+    </div>
+  </div>
+</div>
 
 <main class="app-main">
   <div id="tab-home"        class="tab active"></div>
@@ -1251,6 +1289,44 @@ function renderPlayers() {
       </table>
     </div>` : ''}
 
+    <div class="card">
+      <h2>💾 Export / Import</h2>
+      <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:1rem;">
+        Share game data with family members by copying and pasting the data blob.
+      </p>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <button class="btn btn-secondary" onclick="exportData()">📋 Copy to Clipboard</button>
+        <button class="btn btn-ghost"     onclick="toggleImport('import')">📥 Replace with Import</button>
+        <button class="btn btn-ghost"     onclick="toggleImport('merge')">🔀 Merge Updates</button>
+      </div>
+
+      <div id="import-area" style="display:none;">
+        <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:0.5rem;">
+          <strong>Replace:</strong> overwrites all local data with the pasted data.
+        </p>
+        <textarea id="import-text" rows="4" placeholder="Paste exported data here…"
+          style="width:100%;padding:0.6rem;border:1.5px solid var(--border);border-radius:8px;font-size:0.8rem;font-family:monospace;resize:vertical;"></textarea>
+        <div style="display:flex;gap:0.75rem;margin-top:0.5rem;">
+          <button class="btn btn-primary" onclick="importData()">✓ Load Data</button>
+          <button class="btn btn-ghost"   onclick="toggleImport(null)">Cancel</button>
+        </div>
+      </div>
+
+      <div id="merge-area" style="display:none;">
+        <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:0.5rem;">
+          <strong>Merge:</strong> adds new players and matchups; shows a conflict dialog for any disagreements.
+        </p>
+        <textarea id="merge-text" rows="4" placeholder="Paste a family member's exported data here…"
+          style="width:100%;padding:0.6rem;border:1.5px solid var(--border);border-radius:8px;font-size:0.8rem;font-family:monospace;resize:vertical;"></textarea>
+        <div style="display:flex;gap:0.75rem;margin-top:0.5rem;">
+          <button class="btn btn-primary" onclick="startMerge()">🔀 Preview Merge</button>
+          <button class="btn btn-ghost"   onclick="toggleImport(null)">Cancel</button>
+        </div>
+      </div>
+
+      <p id="export-msg" style="font-size:0.85rem;margin-top:0.5rem;display:none;"></p>
+    </div>
+
     <div class="card" style="border-color:#ffc7ce;background:#fff8f8;">
       <h2 style="color:#c53030;">⚠️ Danger Zone</h2>
       <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:1rem;">
@@ -1303,6 +1379,187 @@ function moveTip(ev) {
   t.style.top  = (ev.clientY - 10) + 'px';
 }
 function hideTip() { document.getElementById('tooltip').style.display = 'none'; }
+
+// ═══════════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ═══════════════════════════════════════════════════════
+
+function exportData() {
+  const json = JSON.stringify(state, null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    showExportMsg('✓ Copied to clipboard! Paste it to a family member.', 'var(--secondary)');
+  }).catch(() => {
+    // Fallback: show in textarea for manual copy
+    const area = document.getElementById('import-area');
+    const txt  = document.getElementById('import-text');
+    area.style.display = 'block';
+    txt.value = json;
+    txt.select();
+    showExportMsg('Clipboard blocked — select all the text above and copy manually.', 'var(--primary)');
+  });
+}
+
+function toggleImport(which) {
+  // Hide both panels, then open the requested one
+  document.getElementById('import-area').style.display = 'none';
+  document.getElementById('merge-area').style.display  = 'none';
+  hideExportMsg();
+  if (which === 'import') {
+    document.getElementById('import-area').style.display = 'block';
+    const txt = document.getElementById('import-text');
+    txt.value = ''; txt.focus();
+  } else if (which === 'merge') {
+    document.getElementById('merge-area').style.display = 'block';
+    const txt = document.getElementById('merge-text');
+    txt.value = ''; txt.focus();
+  }
+}
+
+function importData() {
+  const raw = document.getElementById('import-text').value.trim();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.players) || typeof parsed.months !== 'object') throw new Error();
+    state = parsed;
+    saveState();
+    document.getElementById('import-area').style.display = 'none';
+    showExportMsg('✓ Data loaded successfully!', 'var(--secondary)');
+    renderPlayers();
+  } catch(e) {
+    showExportMsg('✗ Invalid data — make sure you pasted the full export.', 'var(--primary)');
+  }
+}
+
+function showExportMsg(msg, color) {
+  const el = document.getElementById('export-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = color;
+  el.style.display = 'block';
+}
+
+function hideExportMsg() {
+  const el = document.getElementById('export-msg');
+  if (el) el.style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════
+// MERGE
+// ═══════════════════════════════════════════════════════
+
+// Holds the pending merge data while the conflict modal is open
+let _pendingMerge = null;
+
+function startMerge() {
+  const raw = document.getElementById('merge-text').value.trim();
+  let incoming;
+  try {
+    incoming = JSON.parse(raw);
+    if (!Array.isArray(incoming.players) || typeof incoming.months !== 'object') throw new Error();
+  } catch(e) {
+    showExportMsg('✗ Invalid data — make sure you pasted the full export.', 'var(--primary)');
+    return;
+  }
+
+  const newPlayers = incoming.players.filter(p => !state.players.includes(p));
+  const newEdges   = [];   // [{month, from, to}] — no conflict, safe to add
+  const conflicts  = [];   // [{month, pair, currentWinner, incomingWinner}]
+
+  // All players that will exist after merge (needed to validate edges)
+  const allPlayers = new Set([...state.players, ...newPlayers]);
+
+  Object.keys(incoming.months).forEach(month => {
+    (incoming.months[month].edges || []).forEach(e => {
+      if (!allPlayers.has(e.from) || !allPlayers.has(e.to)) return; // skip unknown
+      const cur = edgeBetween(month, e.from, e.to);
+      if (cur === null) {
+        newEdges.push({ month, from: e.from, to: e.to });
+      } else if (cur !== e.from) {
+        // cur === e.to means: we say e.to won, they say e.from won
+        conflicts.push({ month, playerA: e.from, playerB: e.to, currentWinner: cur, incomingWinner: e.from });
+      }
+      // if cur === e.from: both agree, nothing to do
+    });
+  });
+
+  _pendingMerge = { newPlayers, newEdges, conflicts };
+
+  if (!conflicts.length) {
+    // Nothing to resolve — apply immediately
+    applyMerge();
+  } else {
+    showConflictModal(newPlayers, newEdges, conflicts);
+  }
+}
+
+function showConflictModal(newPlayers, newEdges, conflicts) {
+  const subtitle = document.getElementById('merge-modal-subtitle');
+  const body     = document.getElementById('merge-modal-body');
+
+  const parts = [];
+  if (newPlayers.length) parts.push(`${newPlayers.length} new player${newPlayers.length!==1?'s':''}`);
+  if (newEdges.length)   parts.push(`${newEdges.length} new matchup${newEdges.length!==1?'s':''}`);
+  subtitle.textContent = (parts.length ? `Auto-adding: ${parts.join(', ')}. ` : '') +
+    `${conflicts.length} conflict${conflicts.length!==1?'s':''} need your decision:`;
+
+  body.innerHTML = conflicts.map((c, i) => `
+    <div class="conflict-item">
+      <div class="conflict-header">${fmtMonth(c.month)}</div>
+      <div class="conflict-pair" style="padding-top:0.5rem;">${c.playerA} vs ${c.playerB}</div>
+      <div class="conflict-options">
+        <label class="conflict-opt opt-mine">
+          <input type="radio" name="conflict-${i}" value="current" checked>
+          <span>🟢 <strong>${c.currentWinner}</strong> won <span style="color:var(--text-light);font-size:0.8rem;">(yours)</span></span>
+        </label>
+        <label class="conflict-opt opt-theirs">
+          <input type="radio" name="conflict-${i}" value="incoming">
+          <span>🔵 <strong>${c.incomingWinner}</strong> won <span style="color:var(--text-light);font-size:0.8rem;">(theirs)</span></span>
+        </label>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('merge-overlay').style.display = 'block';
+}
+
+function applyMerge() {
+  if (!_pendingMerge) return;
+  const { newPlayers, newEdges, conflicts } = _pendingMerge;
+
+  // Add new players
+  newPlayers.forEach(p => { if (!state.players.includes(p)) state.players.push(p); });
+
+  // Add unambiguous new edges
+  newEdges.forEach(e => setEdge(e.month, e.from, e.to));
+
+  // Apply conflict choices
+  conflicts.forEach((c, i) => {
+    const radios = document.querySelectorAll(`input[name="conflict-${i}"]`);
+    const choice = [...radios].find(r => r.checked)?.value || 'current';
+    if (choice === 'incoming') {
+      const loser = c.incomingWinner === c.playerA ? c.playerB : c.playerA;
+      setEdge(c.month, c.incomingWinner, loser);
+    }
+    // 'current' → keep existing edge, no change needed
+  });
+
+  saveState();
+  closeMergeModal();
+  toggleImport(null);
+
+  const added = newPlayers.length + newEdges.length + conflicts.length;
+  showExportMsg(`✓ Merge complete — ${added} item${added!==1?'s':''} processed.`, 'var(--secondary)');
+  renderPlayers();
+}
+
+function closeMergeModal() {
+  document.getElementById('merge-overlay').style.display = 'none';
+  _pendingMerge = null;
+}
+
+// Close modal on overlay click
+document.getElementById('merge-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeMergeModal();
+});
 
 // ═══════════════════════════════════════════════════════
 // INIT
