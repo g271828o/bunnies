@@ -843,6 +843,12 @@ function renderForceGraph(container, players, es, colorFn, monthKey) {
     .attr('pointer-events','none');
 
   sim.on('tick', () => {
+    // Clamp positions in-place so edges and nodes always agree
+    nodes.forEach(d => {
+      const nr = R + wins[d.id] * 3 + 10;
+      d.x = Math.max(nr, Math.min(W - nr, d.x));
+      d.y = Math.max(nr, Math.min(H - nr, d.y));
+    });
     linkSel.each(function(d) {
       const dx = d.target.x - d.source.x, dy = d.target.y - d.source.y;
       const len = Math.hypot(dx, dy) || 1;
@@ -852,12 +858,7 @@ function renderForceGraph(container, players, es, colorFn, monthKey) {
         .attr('x2', d.target.x - dx/len*tr)
         .attr('y2', d.target.y - dy/len*tr);
     });
-    nodeSel.attr('transform', d => {
-      const nr = R + wins[d.id]*3 + 10;
-      const x  = Math.max(nr, Math.min(W-nr, d.x));
-      const y  = Math.max(nr, Math.min(H-nr, d.y));
-      return `translate(${x},${y})`;
-    });
+    nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
   });
 }
 
@@ -1253,7 +1254,7 @@ function renderPlayers() {
     <div class="card" style="border-color:#ffc7ce;background:#fff8f8;">
       <h2 style="color:#c53030;">⚠️ Danger Zone</h2>
       <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:1rem;">
-        Resetting will erase all recorded data and restore the demo data.
+        Resetting will erase all players and recorded data.
       </p>
       <button class="btn btn-danger" onclick="resetAll()">🗑️ Reset All Data</button>
     </div>`;
@@ -1268,6 +1269,7 @@ function addPlayer() {
   saveState();
   input.value = '';
   renderPlayers();
+  document.getElementById('new-player-input').focus();
 }
 
 function removePlayer(name) {
@@ -1281,9 +1283,9 @@ function removePlayer(name) {
 }
 
 function resetAll() {
-  if (!confirm('Reset ALL data and restore demo? This cannot be undone.')) return;
-  localStorage.removeItem(STORAGE_KEY);
-  initDemo();
+  if (!confirm('Reset ALL data? This cannot be undone.')) return;
+  state = { players: [], months: {} };
+  saveState();
   switchTab('home');
 }
 
