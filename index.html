@@ -274,6 +274,27 @@ table.t-matrix { border-collapse: collapse; margin: 0 auto; font-size: 0.85rem; 
   line-height: 1.5; display: none;
 }
 
+/* ── Elo line chart ── */
+.elo-wrap { width: 100%; height: 300px; }
+.elo-wrap svg { overflow: visible; }
+.elo-line { fill: none; stroke-width: 2.5; }
+.elo-dot { r: 4; stroke: #fff; stroke-width: 2; cursor: pointer; }
+.elo-legend { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+.elo-legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; font-weight: 600; }
+.elo-legend-swatch { width: 20px; height: 4px; border-radius: 2px; }
+
+/* ── Cyclic triple chips ── */
+.cycle-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  background: #fff3e0; border: 1.5px solid #ffcc80;
+  border-radius: 20px; padding: 0.3rem 0.75rem;
+  font-size: 0.82rem; font-weight: 600; color: #7b4a00; margin: 0.2rem;
+}
+
+/* ── Prestige compare table ── */
+.rank-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 500px) { .rank-compare { grid-template-columns: 1fr; } }
+
 /* ── Conflict items ── */
 .conflict-item {
   border: 1.5px solid var(--border); border-radius: 10px;
@@ -1069,11 +1090,127 @@ function buildTheory() {
     ` : `<p style="color:var(--text-light);">Not enough data yet.</p>`}
   </div>`;
 
+  // ── 7: Cyclic Triples ──────────────────────────────────
+  const cycles      = findCyclicTriples(ps, es);
+  const totalTri    = Math.max(ps.length*(ps.length-1)*(ps.length-2)/6, 1);
+  const chaosScore  = es.length === ps.length*(ps.length-1)/2
+    ? Math.round(cycles.length / totalTri * 100) : null;
+
+  html += `
+  <div class="card">
+    <h2>🔺 Cyclic Triples</h2>
+    <div class="concept-card">
+      <h4>Rock-paper-scissors inside the tournament</h4>
+      <p>A <strong>cyclic triple</strong> is a group of three players where A beat B, B beat C,
+         and C beat A — a perfect rock-paper-scissors loop. The more cycles, the more chaotic
+         the month. A fully transitive tournament (no cycles at all) would have a clean linear ranking.
+         Formula: <em>cyclic triples = C(n,3) − Σ C(wins_i, 2)</em>.</p>
+    </div>
+    ${es.length < ps.length*(ps.length-1)/2 ? `
+      <p style="color:var(--text-light);font-size:0.88rem;">Complete the month's matchups to see the full cycle count.</p>
+    ` : `
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <div class="stat-box" style="flex:1;min-width:120px;">
+          <div class="stat-num">${cycles.length}</div>
+          <div class="stat-label">Cyclic triple${cycles.length!==1?'s':''}</div>
+        </div>
+        <div class="stat-box" style="flex:1;min-width:120px;">
+          <div class="stat-num">${Math.round(totalTri) - cycles.length}</div>
+          <div class="stat-label">Transitive triple${(Math.round(totalTri)-cycles.length)!==1?'s':''}</div>
+        </div>
+        <div class="stat-box" style="flex:1;min-width:120px;">
+          <div class="stat-num">${chaosScore}%</div>
+          <div class="stat-label">Chaos score</div>
+        </div>
+      </div>
+      ${cycles.length === 0 ? `
+        <p style="color:var(--secondary);font-weight:600;">✓ Zero cycles — this month has a perfect linear ranking!</p>
+      ` : `
+        <p style="font-size:0.88rem;font-weight:600;margin-bottom:0.5rem;">All ${cycles.length} cycle${cycles.length!==1?'s':''}:</p>
+        <div style="display:flex;flex-wrap:wrap;">
+          ${cycles.map(([a,b,c]) =>
+            `<span class="cycle-chip">${a} → ${b} → ${c} → ${a}</span>`
+          ).join('')}
+        </div>
+      `}
+    `}
+  </div>`;
+
+  // ── 8: Prestige / PageRank ─────────────────────────────
+  const prestige       = prestigeRank(ps, es);
+  const rawRanked      = [...ps].sort((a,b) => outDeg(month,b) - outDeg(month,a));
+  const prestigeRanked = [...ps].sort((a,b) => prestige[b] - prestige[a]);
+  const maxPrestige    = Math.max(...ps.map(p => prestige[p]), 0.001);
+
+  html += `
+  <div class="card">
+    <h2>⭐ Prestige Ranking</h2>
+    <div class="concept-card">
+      <h4>Not all wins are equal</h4>
+      <p>Raw win count treats every opponent the same. <strong>Prestige ranking</strong>
+         (inspired by PageRank) says: beating a strong player earns you more credit than
+         beating a weak one. Your prestige score is the sum of your opponents' prestige scores,
+         iterated until stable. This can flip the raw ranking — look for players who punch
+         above their weight by beating tough opponents!</p>
+    </div>
+    <div class="rank-compare">
+      <div>
+        <p style="font-weight:700;margin-bottom:0.6rem;">Raw wins ranking</p>
+        <ul class="rank-list">
+          ${rawRanked.map((p,i) => `<li>
+            <span class="rank-num ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span>
+            <span>${p}</span>
+            <span style="margin-left:auto;color:var(--text-light);font-size:0.85rem;">${outDeg(month,p)}W</span>
+          </li>`).join('')}
+        </ul>
+      </div>
+      <div>
+        <p style="font-weight:700;margin-bottom:0.6rem;">Prestige ranking</p>
+        <ul class="rank-list">
+          ${prestigeRanked.map((p,i) => {
+            const rawPos = rawRanked.indexOf(p);
+            const diff   = rawPos - i;
+            const arrow  = diff > 0 ? `<span style="color:var(--secondary)">▲${diff}</span>`
+                         : diff < 0 ? `<span style="color:var(--primary)">▼${Math.abs(diff)}</span>`
+                         : `<span style="color:#ccc;">—</span>`;
+            return `<li>
+              <span class="rank-num ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span>
+              <span>${p}</span>
+              <span style="margin-left:auto;font-size:0.82rem;">${arrow}</span>
+            </li>`;
+          }).join('')}
+        </ul>
+      </div>
+    </div>
+    <p style="font-size:0.8rem;color:var(--text-light);margin-top:0.5rem;">▲▼ shows movement vs raw wins ranking.</p>
+  </div>`;
+
+  // ── 9: Elo ────────────────────────────────────────────
+  html += `
+  <div class="card">
+    <h2>📈 Elo Ratings Over Time</h2>
+    <div class="concept-card">
+      <h4>Skill tracking across months</h4>
+      <p><strong>Elo</strong> is the rating system used in chess and many competitive games.
+         After each matchup, the winner gains points and the loser loses points — but the
+         amount exchanged depends on the expected result: upsetting a stronger player earns
+         more than beating a weaker one. Starting at 1000, ratings drift up or down as the
+         months accumulate, revealing long-term trends.</p>
+    </div>
+    <div class="elo-wrap" id="th-elo-chart"></div>
+    <div class="elo-legend" id="th-elo-legend"></div>
+  </div>`;
+
   sec.innerHTML = html;
 
   // Render main graph (colored by out-degree)
   const mainWrap = document.getElementById('th-graph-main');
   if (mainWrap) renderForceGraph(mainWrap, ps, es, p => winColor(outDeg(month,p), maxOut), month);
+
+  // Elo chart
+  const eloWrap = document.getElementById('th-elo-chart');
+  const eloLeg  = document.getElementById('th-elo-legend');
+  if (eloWrap) renderEloChart(eloWrap, eloLeg);
 
   // Render SCC graph (colored by component)
   const sccWrap = document.getElementById('th-graph-scc');
@@ -1442,6 +1579,163 @@ function showExportMsg(msg, color) {
 function hideExportMsg() {
   const el = document.getElementById('export-msg');
   if (el) el.style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════
+// EXTRA GRAPH THEORY ALGORITHMS
+// ═══════════════════════════════════════════════════════
+
+function findCyclicTriples(players, es) {
+  const edgeSet = new Set(es.map(e => `${e.from}::${e.to}`));
+  const beats   = (a, b) => edgeSet.has(`${a}::${b}`);
+  const triples = [];
+  for (let i = 0; i < players.length; i++)
+    for (let j = i+1; j < players.length; j++)
+      for (let k = j+1; k < players.length; k++) {
+        const [a, b, c] = [players[i], players[j], players[k]];
+        if (beats(a,b) && beats(b,c) && beats(c,a)) triples.push([a,b,c]);
+        else if (beats(a,c) && beats(c,b) && beats(b,a)) triples.push([a,c,b]);
+      }
+  return triples;
+}
+
+function prestigeRank(players, es, iterations=80) {
+  if (!players.length) return {};
+  const n = players.length;
+  // score[winner] accumulates the scores of everyone they beat (iterative eigenvector)
+  let scores = {};
+  players.forEach(p => scores[p] = 1 / n);
+  for (let iter = 0; iter < iterations; iter++) {
+    const next = {};
+    players.forEach(p => next[p] = 0);
+    es.forEach(e => { if (next[e.from] !== undefined) next[e.from] += scores[e.to]; });
+    // Players with no wins get a floor so they don't disappear
+    players.forEach(p => { if (next[p] === 0) next[p] = 0.0001; });
+    const total = Object.values(next).reduce((s,v) => s+v, 0);
+    players.forEach(p => scores[p] = next[p] / total);
+  }
+  return scores;
+}
+
+function computeElo(K=32, initial=1000) {
+  // Returns { history: {month: {player: elo}}, final: {player: elo} }
+  const elos = {};
+  state.players.forEach(p => elos[p] = initial);
+  const history = {};
+  const sortedMonths = Object.keys(state.months).sort();
+  sortedMonths.forEach(month => {
+    edges(month).forEach(e => {
+      const rW = elos[e.from] ?? initial;
+      const rL = elos[e.to]   ?? initial;
+      const eW = 1 / (1 + Math.pow(10, (rL - rW) / 400));
+      elos[e.from] = Math.round(rW + K * (1 - eW));
+      elos[e.to]   = Math.round(rL + K * (0 - (1 - eW)));
+    });
+    history[month] = { ...elos };
+  });
+  return { history, final: elos };
+}
+
+function renderEloChart(container, legendEl) {
+  const sortedMonths = Object.keys(state.months).sort();
+  if (sortedMonths.length < 1 || !state.players.length) {
+    container.innerHTML = `<p style="color:var(--text-light);padding:1rem;">Need at least one month of data.</p>`;
+    return;
+  }
+
+  const { history, final } = computeElo();
+  const colors = d3.schemeTableau10;
+  const playerColor = {};
+  state.players.forEach((p, i) => playerColor[p] = colors[i % colors.length]);
+
+  // Build series: prepend a "start" point at initial=1000 before first month
+  const allPoints = {}; // player → [{month, elo}]
+  state.players.forEach(p => {
+    allPoints[p] = [{ month: '__start__', elo: 1000 }];
+    sortedMonths.forEach(m => {
+      allPoints[p].push({ month: m, elo: (history[m] && history[m][p]) ?? 1000 });
+    });
+  });
+
+  const xLabels   = ['Start', ...sortedMonths.map(fmtMonth)];
+  const xIndices  = allPoints[state.players[0]].map((_, i) => i);
+  const allElos   = state.players.flatMap(p => allPoints[p].map(d => d.elo));
+  const eloMin    = Math.min(...allElos) - 30;
+  const eloMax    = Math.max(...allElos) + 30;
+
+  const rect = container.getBoundingClientRect();
+  const W  = rect.width  || 680;
+  const H  = rect.height || 300;
+  const mg = { top: 15, right: 20, bottom: 50, left: 55 };
+  const iW = W - mg.left - mg.right;
+  const iH = H - mg.top  - mg.bottom;
+
+  d3.select(container).selectAll('*').remove();
+  const svg = d3.select(container).append('svg').attr('width', W).attr('height', H);
+  const g   = svg.append('g').attr('transform', `translate(${mg.left},${mg.top})`);
+
+  const xScale = d3.scalePoint().domain(xIndices).range([0, iW]);
+  const yScale = d3.scaleLinear().domain([eloMin, eloMax]).range([iH, 0]);
+
+  // Grid lines
+  g.append('g').attr('class','grid')
+    .call(d3.axisLeft(yScale).tickSize(-iW).tickFormat(''))
+    .selectAll('line').attr('stroke','#eee');
+  g.select('.grid .domain').remove();
+
+  // Axes
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(xScale).tickFormat(i => xLabels[i]))
+    .selectAll('text')
+    .attr('transform','rotate(-30)').attr('text-anchor','end')
+    .attr('font-size','11px');
+  g.append('g')
+    .call(d3.axisLeft(yScale).ticks(5))
+    .selectAll('text').attr('font-size','11px');
+
+  // Y-axis label
+  g.append('text').attr('transform','rotate(-90)')
+    .attr('y',-42).attr('x',-iH/2)
+    .attr('text-anchor','middle').attr('font-size','11px')
+    .attr('fill','var(--text-light)').text('Elo Rating');
+
+  // Lines and dots
+  const line = d3.line()
+    .x((_,i) => xScale(i))
+    .y(d => yScale(d.elo));
+
+  state.players.forEach(p => {
+    const pts = allPoints[p];
+    g.append('path')
+      .datum(pts)
+      .attr('class','elo-line')
+      .attr('stroke', playerColor[p])
+      .attr('d', line);
+
+    g.selectAll(`.dot-${p.replace(/\W/g,'_')}`)
+      .data(pts)
+      .enter().append('circle')
+      .attr('class','elo-dot')
+      .attr('cx', (_,i) => xScale(i))
+      .attr('cy', d => yScale(d.elo))
+      .attr('r', 4)
+      .attr('fill', playerColor[p])
+      .attr('stroke','#fff').attr('stroke-width', 2)
+      .on('mouseover', (ev, d) => showTip(ev, `<strong>${p}</strong><br>${d.month==='__start__'?'Start':fmtMonth(d.month)}: <strong>${d.elo}</strong>`))
+      .on('mousemove', moveTip)
+      .on('mouseout',  hideTip);
+  });
+
+  // Legend
+  if (legendEl) {
+    const byFinal = [...state.players].sort((a,b) => final[b] - final[a]);
+    legendEl.innerHTML = byFinal.map(p =>
+      `<div class="elo-legend-item">
+        <div class="elo-legend-swatch" style="background:${playerColor[p]}"></div>
+        ${p} <span style="color:var(--text-light);font-weight:400;">${final[p]}</span>
+      </div>`
+    ).join('');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
