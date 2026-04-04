@@ -322,6 +322,37 @@ table.t-matrix { border-collapse: collapse; margin: 0 auto; font-size: 0.85rem; 
 .wr-bar { display: flex; align-items: center; gap: 0.5rem; }
 .wr-track { width: 64px; height: 7px; background: #eee; border-radius: 4px; overflow: hidden; }
 .wr-fill  { height: 100%; background: var(--secondary); border-radius: 4px; }
+
+/* ── Personal view ── */
+.personal-intro {
+  background: linear-gradient(135deg, #fff8e1 0%, #fff3e0 100%);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.personal-intro h3 { font-size: 0.95rem; font-weight: 800; margin-bottom: 0.35rem; color: var(--text); }
+.personal-intro p  { font-size: 0.84rem; line-height: 1.65; color: var(--text-light); }
+
+.matchup-group { margin-bottom: 1.75rem; }
+.matchup-group h3 { font-size: 0.95rem; font-weight: 800; color: var(--text); margin-bottom: 0.25rem; }
+.matchup-group-desc { font-size: 0.8rem; color: var(--text-light); margin-bottom: 0.65rem; line-height: 1.5; }
+
+.matchup-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.7rem 1rem; background: var(--bg);
+  border-radius: 10px; margin-bottom: 0.4rem;
+  border: 1.5px solid transparent;
+  flex-wrap: wrap;
+}
+.matchup-row.priority-high { border-color: var(--accent); background: #fffbf0; }
+.matchup-opp { font-weight: 700; flex: 1; min-width: 100px; }
+.matchup-opp-sub { font-size: 0.74rem; color: var(--text-light); font-weight: 400; }
+.matchup-status { font-size: 0.78rem; font-weight: 700; padding: 0.2rem 0.65rem; border-radius: 10px; white-space: nowrap; }
+.status-record { background: #fff3cd; color: #856404; }
+.status-win    { background: #d4edda; color: #155724; }
+.status-loss   { background: #f8d7da; color: #721c24; }
+.matchup-btns  { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -1857,11 +1888,168 @@ document.getElementById('merge-overlay').addEventListener('click', function(e) {
 });
 
 // ═══════════════════════════════════════════════════════
+// PERSONAL VIEW  (URL hash routing: #PlayerName)
+// ═══════════════════════════════════════════════════════
+
+function initPersonalMode() {
+  const hash = decodeURIComponent(window.location.hash.slice(1)).trim();
+  if (!hash || !state.players.includes(hash)) return false;
+
+  document.querySelector('.app-header h1').textContent = `🐰 ${hash}'s Bunnies!`;
+  document.querySelector('.app-header p').textContent  = 'Your personal matchup view';
+  document.getElementById('app-nav').style.display     = 'none';
+  document.querySelector('.app-main').innerHTML        = `<div id="personal-view"></div>`;
+  renderPersonalView(hash);
+  return true;
+}
+
+function renderPersonalView(player) {
+  const el = document.getElementById('personal-view');
+  if (!el) return;
+
+  const month     = nowMonth();
+  const opponents = state.players.filter(p => p !== player);
+
+  if (!opponents.length) {
+    el.innerHTML = `<div class="card"><div class="empty-state"><div class="ei">🐰</div>
+      <p>No other players yet — ask a family member to add you in the Players tab!</p>
+    </div></div>`;
+    return;
+  }
+
+  // Use wins in current month as ranking proxy
+  const winCounts = {};
+  state.players.forEach(p => winCounts[p] = outDeg(month, p));
+  const myWins = winCounts[player];
+
+  // Build matchup metadata
+  const matchups = opponents.map(opp => {
+    const result  = edgeBetween(month, player, opp);
+    const oppWins = winCounts[opp];
+    let status, priority;
+    if (result === null) {
+      const oppAhead = oppWins > myWins;
+      status   = oppAhead ? 'unrecorded-ahead' : 'unrecorded-behind';
+      priority = oppAhead ? 0 : 1;
+    } else if (result === player) {
+      status = 'win';   priority = 3;
+    } else {
+      status = 'loss';  priority = 2;
+    }
+    return { opp, oppWins, status, priority };
+  });
+
+  // Sort: by priority first, then by opponent wins desc within each group
+  matchups.sort((a, b) => a.priority - b.priority || b.oppWins - a.oppWins);
+
+  const recorded = matchups.filter(m => m.status === 'win' || m.status === 'loss').length;
+
+  let html = `<div class="card">
+    <h2>📝 ${player}'s Matchups — ${fmtMonth(month)}</h2>
+
+    <div class="personal-intro">
+      <h3>How matchups are ordered</h3>
+      <p>
+        Your ranking is determined by how many matchups you win. Matchups are ordered
+        so the most impactful ones appear first:<br><br>
+        <strong>1. Unrecorded vs. opponents ahead of you</strong> — they currently have more wins than you.
+        Beating them closes the gap fastest.<br>
+        <strong>2. Unrecorded vs. opponents behind or tied with you</strong> — every win still helps.<br>
+        <strong>3. Losses</strong> — already recorded, shown so you can see where you're falling behind.<br>
+        <strong>4. Wins</strong> — secured, shown last.<br><br>
+        Within each group, opponents with more current wins appear first.
+      </p>
+    </div>
+
+    <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:1.25rem;">
+      ${recorded} / ${opponents.length} matchups recorded &nbsp;·&nbsp;
+      Your wins this month: <strong>${myWins}</strong>
+    </p>`;
+
+  const groups = [
+    { statuses: ['unrecorded-ahead'],  label: '🎯 Record These First — Opponents Ahead of You',
+      desc: 'These players have more wins than you right now. Beating them is the single fastest way to move up the rankings.' },
+    { statuses: ['unrecorded-behind'], label: '📝 Unrecorded — Opponents Behind or Tied',
+      desc: 'Not yet played this month. Every win adds to your total — record these to lock in your lead.' },
+    { statuses: ['loss'],              label: '📉 Losses',
+      desc: 'Already recorded as losses. These are currently hurting your standing.' },
+    { statuses: ['win'],               label: '✅ Wins',
+      desc: 'Already secured — great work!' },
+  ];
+
+  for (const group of groups) {
+    const rows = matchups.filter(m => group.statuses.includes(m.status));
+    if (!rows.length) continue;
+
+    html += `<div class="matchup-group">
+      <h3>${group.label}</h3>
+      <p class="matchup-group-desc">${group.desc}</p>`;
+
+    for (const { opp, oppWins, status } of rows) {
+      const isPriority = status === 'unrecorded-ahead';
+      let statusBadge, btns;
+
+      if (status === 'win') {
+        statusBadge = `<span class="matchup-status status-win">🐰 You won</span>`;
+        btns = `<button class="btn btn-ghost btn-sm" onclick="personalFlip('${month}','${player}','${opp}')">Flip</button>
+                <button class="btn btn-ghost btn-sm" onclick="personalClear('${month}','${player}','${opp}')">Clear</button>`;
+      } else if (status === 'loss') {
+        statusBadge = `<span class="matchup-status status-loss">${opp} said it first</span>`;
+        btns = `<button class="btn btn-ghost btn-sm" onclick="personalFlip('${month}','${player}','${opp}')">Flip</button>
+                <button class="btn btn-ghost btn-sm" onclick="personalClear('${month}','${player}','${opp}')">Clear</button>`;
+      } else {
+        statusBadge = `<span class="matchup-status status-record">Not recorded</span>`;
+        btns = `<button class="btn btn-primary btn-sm" onclick="personalRecord('${month}','${player}','${opp}',true)">🐰 I said it first</button>
+                <button class="btn btn-danger btn-sm"  onclick="personalRecord('${month}','${player}','${opp}',false)">They said it first</button>`;
+      }
+
+      html += `<div class="matchup-row${isPriority ? ' priority-high' : ''}">
+        <div class="matchup-opp">
+          ${opp}
+          <div class="matchup-opp-sub">${oppWins} win${oppWins !== 1 ? 's' : ''} this month</div>
+        </div>
+        ${statusBadge}
+        <div class="matchup-btns">${btns}</div>
+      </div>`;
+    }
+
+    html += `</div>`;
+  }
+
+  html += `</div>
+    <p style="text-align:center;margin-top:0.5rem;margin-bottom:2rem;">
+      <a href="${window.location.pathname}" style="color:var(--text-light);font-size:0.85rem;">← View full app</a>
+    </p>`;
+
+  el.innerHTML = html;
+}
+
+function personalRecord(month, player, opp, playerWon) {
+  if (playerWon) setEdge(month, player, opp);
+  else           setEdge(month, opp, player);
+  renderPersonalView(player);
+}
+
+function personalFlip(month, player, opp) {
+  const cur = edgeBetween(month, player, opp);
+  if      (cur === player) setEdge(month, opp, player);
+  else if (cur === opp)    setEdge(month, player, opp);
+  renderPersonalView(player);
+}
+
+function personalClear(month, player, opp) {
+  clearEdge(month, player, opp);
+  renderPersonalView(player);
+}
+
+// ═══════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════
 
 loadState();
-switchTab('home');
+if (!initPersonalMode()) {
+  switchTab('home');
+}
 </script>
 </body>
 </html>
