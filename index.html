@@ -675,6 +675,16 @@ function renderHome() {
     </div>
 
     <div class="card">
+      <h2>👤 Jump to My View</h2>
+      <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:1rem;">Go straight to your personal matchup tracker, ordered by what matters most for your ranking.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:0.6rem;">
+        ${state.players.map(p =>
+          `<a href="#${encodeURIComponent(p)}" class="btn btn-primary" style="text-decoration:none;">🐰 ${p}</a>`
+        ).join('')}
+      </div>
+    </div>
+
+    <div class="card">
       <h2>📅 Month History</h2>
       ${months.length ? `
         <ul class="month-history">
