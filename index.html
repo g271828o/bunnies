@@ -1506,6 +1506,15 @@ function renderPlayers() {
       <p id="export-msg" style="font-size:0.85rem;margin-top:0.5rem;display:none;"></p>
     </div>
 
+    <div class="card">
+      <h2>🖨️ 3D Print a Trophy</h2>
+      <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:1rem;">
+        Download a 3D-printable bunny token — perfect for the monthly winner!
+        Open the <code>.stl</code> file in any slicer (Cura, PrusaSlicer, Bambu Studio…) and print away.
+      </p>
+      <button class="btn btn-secondary" onclick="downloadBunnySTL()">⬇️ Download Bunny STL</button>
+    </div>
+
     <div class="card" style="border-color:#ffc7ce;background:#fff8f8;">
       <h2 style="color:#c53030;">⚠️ Danger Zone</h2>
       <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:1rem;">
@@ -2050,6 +2059,57 @@ function personalFlip(month, player, opp) {
 function personalClear(month, player, opp) {
   clearEdge(month, player, opp);
   renderPersonalView(player);
+}
+
+// ═══════════════════════════════════════════════════════
+// STL EXPORT
+// ═══════════════════════════════════════════════════════
+
+function downloadBunnySTL() {
+  const f3 = v => v.map(n => n.toFixed(4)).join(' ');
+  const facet = (n, v1, v2, v3) =>
+    `  facet normal ${f3(n)}\n    outer loop\n      vertex ${f3(v1)}\n      vertex ${f3(v2)}\n      vertex ${f3(v3)}\n    endloop\n  endfacet\n`;
+
+  // Generate 12 triangles for an axis-aligned box
+  function box(x0, y0, z0, x1, y1, z1) {
+    return [
+      // Bottom (z=z0), normal (0,0,-1)
+      facet([0,0,-1], [x0,y0,z0], [x1,y1,z0], [x1,y0,z0]),
+      facet([0,0,-1], [x0,y0,z0], [x0,y1,z0], [x1,y1,z0]),
+      // Top (z=z1), normal (0,0,1)
+      facet([0,0, 1], [x0,y0,z1], [x1,y0,z1], [x1,y1,z1]),
+      facet([0,0, 1], [x0,y0,z1], [x1,y1,z1], [x0,y1,z1]),
+      // Front (y=y0), normal (0,-1,0)
+      facet([0,-1,0], [x0,y0,z0], [x1,y0,z0], [x1,y0,z1]),
+      facet([0,-1,0], [x0,y0,z0], [x1,y0,z1], [x0,y0,z1]),
+      // Back (y=y1), normal (0,1,0)
+      facet([0, 1,0], [x0,y1,z0], [x1,y1,z1], [x1,y1,z0]),
+      facet([0, 1,0], [x0,y1,z0], [x0,y1,z1], [x1,y1,z1]),
+      // Left (x=x0), normal (-1,0,0)
+      facet([-1,0,0], [x0,y0,z0], [x0,y1,z1], [x0,y1,z0]),
+      facet([-1,0,0], [x0,y0,z0], [x0,y0,z1], [x0,y1,z1]),
+      // Right (x=x1), normal (1,0,0)
+      facet([ 1,0,0], [x1,y0,z0], [x1,y1,z0], [x1,y1,z1]),
+      facet([ 1,0,0], [x1,y0,z0], [x1,y1,z1], [x1,y0,z1]),
+    ].join('');
+  }
+
+  // Blocky bunny — all dimensions in mm, origin at bottom-centre
+  const parts = [
+    box(-15, -11,  0,  15,  11, 28),  // body
+    box(-11,  -8, 28,  11,   8, 48),  // head
+    box(-10,  -2, 48,  -5,   2, 78),  // left ear
+    box(  5,  -2, 48,  10,   2, 78),  // right ear
+    box( -3, -12, 32,   3,  -8, 38),  // nose (protrudes from head front)
+    box( -4,  11,  8,   4,  19, 16),  // fluffy tail
+  ];
+
+  const stl  = `solid bunny\n${parts.join('')}endsolid bunny\n`;
+  const blob = new Blob([stl], { type: 'model/stl' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: 'bunny.stl' });
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ═══════════════════════════════════════════════════════
